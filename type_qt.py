@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import qtpy  # to get the currently used Qt bindings
+from qtpy.QtCore import Signal
 
 logging.basicConfig()
 log: logging.Logger = logging.getLogger()
@@ -49,7 +50,7 @@ def add_def_types(lines: list[str]) -> list[str]:
         if not decorators_count:
             # the item is likely not a function but a signal
             return [
-                f'{" " * base_indent}{func_name(func)}: {qtpy.API_NAME}.QtCore.{qtpy.QtCore.Signal.__name__} = ...',
+                f'{" " * base_indent}{func_name(func)}: {qtpy.API_NAME}.QtCore.{Signal.__name__} = ...',
                 ''
             ]
     docstring_start: int = func.find('"""') + 3

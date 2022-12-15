@@ -314,6 +314,162 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                                             attr='format')
         return ast.Call(func=func, args=args, keywords=[])
 
+    def unpack_starred_tuple(operator: ast.Tuple) -> ast.expr:
+        def make_tuple(elements: list[ast.expr]) -> ast.Call:
+            return ast.Call(func=ast.Name(id='tuple'),
+                            args=[check_expression(cast(ast.Starred, e).value) for e in elements],
+                            keywords=[])
+
+        def make_left(elements: list[ast.expr]) -> ast.expr | ast.BinOp | ast.Tuple | ast.Call:
+            if not any(isinstance(e, ast.Starred) for e in elements):
+                return ast.Tuple(elts=list(check_expression(e) for e in elements))
+            if len(elements) == 1 and isinstance(elements[0], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[0]).value, ast.List):
+                    return ast.Tuple(elts=list(check_expression(e)
+                                               for e in cast(ast.List, cast(ast.Starred, elements[0]).value).elts))
+                else:
+                    return make_tuple([elements[0]])
+            if isinstance(elements[-1], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[-1]).value, ast.List):
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=ast.Tuple(elts=list(check_expression(e)
+                                                               for e in cast(ast.List, cast(ast.Starred,
+                                                                                            elements[-1]).value).elts)),
+                                     op=ast.Add())
+                else:
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=make_tuple([elements[-1]]),
+                                     op=ast.Add())
+            not_starred: list[ast.expr] = []
+            i: int = 0
+            for i in range(len(elements) - 1, -1, -1):
+                if isinstance(elements[i], ast.Starred):
+                    break
+                else:
+                    not_starred.append(check_expression(elements[i]))
+            return ast.BinOp(left=make_left(elements[:(i + 1)]),
+                             right=ast.Tuple(elts=not_starred),
+                             op=ast.Add())
+
+        return make_left(operator.elts)
+
+    def unpack_starred_list(operator: ast.List) -> ast.expr:
+        def make_list(elements: list[ast.expr]) -> ast.Call:
+            return ast.Call(func=ast.Name(id='list'),
+                            args=[check_expression(cast(ast.Starred, e).value) for e in elements],
+                            keywords=[])
+
+        def make_left(elements: list[ast.expr]) -> ast.expr | ast.BinOp | ast.List | ast.Call:
+            if not any(isinstance(e, ast.Starred) for e in elements):
+                return ast.List(elts=list(check_expression(e) for e in elements))
+            if len(elements) == 1 and isinstance(elements[0], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[0]).value, ast.List):
+                    return ast.List(elts=list(check_expression(e)
+                                              for e in cast(ast.List, cast(ast.Starred, elements[0]).value).elts))
+                else:
+                    return make_list([elements[0]])
+            if isinstance(elements[-1], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[-1]).value, ast.List):
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=ast.List(elts=list(check_expression(e)
+                                                              for e in cast(ast.List, cast(ast.Starred,
+                                                                                           elements[-1]).value).elts)),
+                                     op=ast.Add())
+                else:
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=make_list([elements[-1]]),
+                                     op=ast.Add())
+            not_starred: list[ast.expr] = []
+            i: int = 0
+            for i in range(len(elements) - 1, -1, -1):
+                if isinstance(elements[i], ast.Starred):
+                    break
+                else:
+                    not_starred.append(check_expression(elements[i]))
+            return ast.BinOp(left=make_left(elements[:(i + 1)]),
+                             right=ast.List(elts=not_starred),
+                             op=ast.Add())
+
+        return make_left(operator.elts)
+
+    def unpack_starred_set(operator: ast.Set) -> ast.expr:
+        def make_set(elements: list[ast.expr]) -> ast.Call:
+            return ast.Call(func=ast.Name(id='set'),
+                            args=[check_expression(cast(ast.Starred, e).value) for e in elements],
+                            keywords=[])
+
+        def make_left(elements: list[ast.expr]) -> ast.expr | ast.BinOp | ast.Set | ast.Call:
+            if not any(isinstance(e, ast.Starred) for e in elements):
+                return ast.Set(elts=list(check_expression(e) for e in elements))
+            if len(elements) == 1 and isinstance(elements[0], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[0]).value, ast.List):
+                    return ast.Set(elts=list(check_expression(e)
+                                             for e in cast(ast.List, cast(ast.Starred, elements[0]).value).elts))
+                else:
+                    return make_set([elements[0]])
+            if isinstance(elements[-1], ast.Starred):
+                if isinstance(cast(ast.Starred, elements[-1]).value, ast.List):
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=ast.Set(elts=list(check_expression(e)
+                                                             for e in cast(ast.List, cast(ast.Starred,
+                                                                                          elements[-1]).value).elts)),
+                                     op=ast.BitOr())
+                else:
+                    return ast.BinOp(left=make_left(elements[:-1]),
+                                     right=make_set([elements[-1]]),
+                                     op=ast.BitOr())
+            not_starred: list[ast.expr] = []
+            i: int = 0
+            for i in range(len(elements) - 1, -1, -1):
+                if isinstance(elements[i], ast.Starred):
+                    break
+                else:
+                    not_starred.append(check_expression(elements[i]))
+            return ast.BinOp(left=make_left(elements[:(i + 1)]),
+                             right=ast.Set(elts=not_starred),
+                             op=ast.BitOr())
+
+        return make_left(operator.elts)
+
+    def unpack_starred_dict(operator: ast.Dict) -> ast.expr | ast.Call:
+        def get_items(d: ast.Dict) -> ast.Call:
+            return ast.Call(func=ast.Attribute(attr='items',
+                                               value=d),
+                            args=[],
+                            keywords=[])
+
+        def make_tuple(keys: list[ast.expr | None], values: list[ast.expr | None]) -> ast.Call:
+            d: ast.Dict = ast.Dict(keys=list(check_expression(key) for key in keys),
+                                   values=list(check_expression(value) for value in values))
+            return ast.Call(func=ast.Name(id='tuple'),
+                            args=[get_items(d)],
+                            keywords=[])
+
+        def make_left(keys: list[ast.expr | None], values: list[ast.expr | None]) -> ast.expr | ast.BinOp:
+            if not any(key is None for key in keys):
+                return make_tuple(keys, values)
+            if len(keys) == 1 and keys[-1] is None:
+                return make_tuple(cast(ast.Dict, values[-1]).keys, cast(ast.Dict, values[-1]).values)
+            if keys[-1] is None:
+                return ast.BinOp(left=make_left(keys[:-1], values[:-1]),
+                                 right=make_tuple(cast(ast.Dict, values[-1]).keys, cast(ast.Dict, values[-1]).values),
+                                 op=ast.Add())
+
+            i: int = 0
+            for i in range(len(keys) - 1, -1, -1):
+                if keys[i] is None:
+                    break
+            return ast.BinOp(left=make_left(keys[:(i + 1)], values[:(i + 1)]),
+                             right=make_tuple(keys[(i + 1):], values[(i + 1):]),
+                             op=ast.Add())
+
+        if len(operator.keys) == 1 and operator.keys[0] is None:
+            return operator.values[0]
+
+        return ast.Call(func=ast.Name(id='dict'),
+                        args=[make_left(operator.keys, operator.values)],
+                        keywords=[])
+
     def check_expression(operator: ast.expr) -> ast.expr:
         field: str
         for field in getattr(operator, '_fields', ()):
@@ -324,8 +480,9 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                 setattr(operator, field, check_expression(operator_field))
             elif isinstance(operator_field, list):
                 field_item: Any
-                if all(isinstance(field_item, ast.expr) for field_item in operator_field):
-                    setattr(operator, field, list(map(check_expression, operator_field)))
+                if all(isinstance(field_item, ast.expr | None) for field_item in operator_field):
+                    setattr(operator, field, list(check_expression(field_item) if field_item is not None else field_item
+                                                  for field_item in operator_field))
                 elif all(isinstance(field_item, ast.keyword) for field_item in operator_field):
                     pass  # see ast.Call below
                 elif all(isinstance(field_item, ast.cmpop) for field_item in operator_field):
@@ -402,6 +559,26 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                     operator: ast.Call = ast.Call(func=ast.Name(id='float'),
                                                   args=[ast.Constant(value='inf')],
                                                   keywords=[])
+            case ast.Tuple():
+                operator: ast.Tuple
+                if any(isinstance(e, ast.Starred) for e in operator.elts):
+                    future_code_warning('starred expression as not an assignment target', (3, 5), operator)
+                    operator: ast.expr = unpack_starred_tuple(operator)
+            case ast.List():
+                operator: ast.List
+                if any(isinstance(e, ast.Starred) for e in operator.elts):
+                    future_code_warning('starred expression as not an assignment target', (3, 5), operator)
+                    operator: ast.expr = unpack_starred_list(operator)
+            case ast.Set():
+                operator: ast.Set
+                if any(isinstance(e, ast.Starred) for e in operator.elts):
+                    future_code_warning('starred expression as not an assignment target', (3, 5), operator)
+                    operator: ast.expr = unpack_starred_set(operator)
+            case ast.Dict():
+                operator: ast.Dict
+                if any(key is None for key in operator.keys):
+                    future_code_warning('starred expression as not an assignment target', (3, 5), operator)
+                    operator: ast.Call = unpack_starred_dict(operator)
             case _:
                 pass
         return operator

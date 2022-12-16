@@ -112,6 +112,7 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
     import_typing_overload_as: list[str] = []
     import_typing_named_tuple_as: list[str] = []
     replace_typing_named_tuple_as: list[str] = []
+    import_typing_generic_as: list[str] = []
     from_typing_import: list[str] = []
 
     import_dataclasses_as: list[str] = []
@@ -613,6 +614,8 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                                                               if name.name == 'overload'])
                             import_typing_named_tuple_as.extend([name.asname or name.name for name in item.names
                                                                  if name.name == 'NamedTuple'])
+                            import_typing_generic_as.extend([name.asname or name.name for name in item.names
+                                                             if name.name == 'Generic'])
                             if any(name.name == 'NamedTuple' for name in item.names):
                                 replace_typing_named_tuple_as.append('named''tuple')
                             if any(name.name == 'TYPE_CHECKING' for name in item.names):
@@ -703,6 +706,8 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                                                           if name.name == 'typing.overload'])
                         import_typing_named_tuple_as.extend([name.asname or name.name for name in item.names
                                                              if name.name == 'typing.NamedTuple'])
+                        import_typing_generic_as.extend([name.asname or name.name for name in item.names
+                                                         if name.name == 'typing.Generic'])
                         if any(name.name == 'typing.NamedTuple' for name in item.names):
                             replace_typing_named_tuple_as.append('collections.''named''tuple')
                         if new_names:
@@ -859,6 +864,10 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                     if any(isinstance(base, ast.Subscript)
                            for base in item.bases):
                         item = make_base_class_generic(item)
+                    if any(isinstance(base, ast.Name) and base.id in import_typing_generic_as
+                           for base in item.bases):
+                        item.bases = [base for base in item.bases
+                                      if isinstance(base, ast.Name) and base.id not in import_typing_generic_as]
                     if any((isinstance(decorator, ast.Attribute)
                             and decorator.value.id in import_dataclasses_as
                             and decorator.attr == 'dataclass')

@@ -1,5 +1,7 @@
 # coding: utf-8
-
+import builtins
+import functools
+import keyword
 import logging
 from pathlib import Path
 
@@ -9,6 +11,8 @@ from qtpy.QtCore import Signal
 logging.basicConfig()
 log: logging.Logger = logging.getLogger()
 log.setLevel(logging.INFO)
+
+BUILTIN_NAMES: list[str] = dir(builtins)
 
 
 def indent(line: str) -> int:
@@ -20,6 +24,7 @@ def indent(line: str) -> int:
     return 0
 
 
+@functools.lru_cache(maxsize=1, typed=True)
 def func_name(func: str) -> str:
     """ Find the function name from its definition """
     if 'def ' not in func:
@@ -27,6 +32,130 @@ def func_name(func: str) -> str:
 
     def_pos: int = func.find('def ')
     return func[(def_pos + 4):(func.find('(', def_pos + 4))].strip()
+
+
+def ensure_arg_names(line: str) -> str:
+    """ Add dummy arg names if only arg types specified """
+
+    # should we type `self`? (see https://peps.python.org/pep-0673/)
+
+    def split_args(args_str: str) -> list[str]:
+        in_quotes: bool = False
+        in_double_quotes: bool = False
+        in_triple_quotes: bool = False
+        in_triple_double_quotes: bool = False
+        parentheses_level: int = 0
+        brackets_level: int = 0
+        braces_level: int = 0
+        args_list: list[str] = []
+        while args_str:
+            i: int
+            for i in range(len(args_str)):
+                if i == len(args_str) - 1:
+                    args_list.append(args_str.strip())
+                    args_str = ''
+                    break
+                if (args_str[i] == ','
+                        and not in_quotes
+                        and not in_double_quotes
+                        and not in_triple_quotes
+                        and not in_triple_double_quotes
+                        and parentheses_level == 0
+                        and brackets_level == 0
+                        and braces_level == 0):
+                    args_list.append(args_str[:i].strip())
+                    args_str = args_str[(i + 1):].strip()
+                    break
+                if not in_quotes and not in_double_quotes and not in_triple_quotes and not in_triple_double_quotes:
+                    match args_str[i]:
+                        case '(':
+                            parentheses_level += 1
+                        case ')':
+                            parentheses_level -= 1
+                        case '[':
+                            brackets_level += 1
+                        case ']':
+                            brackets_level -= 1
+                        case '{':
+                            braces_level += 1
+                        case '}':
+                            braces_level -= 1
+                if not in_double_quotes and not in_triple_double_quotes and args_str.startswith("'''", i):
+                    if in_quotes:
+                        in_quotes = False
+                    else:
+                        in_triple_quotes = not in_triple_quotes
+                if not in_quotes and not in_triple_quotes and args_str.startswith('"""', i):
+                    if in_double_quotes:
+                        in_double_quotes = False
+                    else:
+                        in_triple_double_quotes = not in_triple_double_quotes
+                if not in_triple_quotes and not in_triple_double_quotes:
+                    match args_str[i]:
+                        case '\'':
+                            in_quotes = not in_quotes
+                        case '"':
+                            in_double_quotes = not in_double_quotes
+
+        return args_list
+
+    def looks_bad(a: str) -> bool:
+        if ':' in a:
+            return False
+        if '=' in a:
+            a = a[:a.find('=')].strip()
+        return not a.isidentifier() or keyword.iskeyword(a) or a in BUILTIN_NAMES
+
+    def looks_like_qt_type(a: str) -> bool:
+        if not a.startswith('Q'):
+            return False
+        return all(map(str.isidentifier, a.split('.')))
+
+    def contains_bad_arg() -> bool:
+        if len(set(args)) != len(args):  # identical args found
+            return True
+
+        a: str
+        for a in args:
+            if a == 'self':
+                continue
+            if looks_bad(a):
+                return True
+            if looks_like_qt_type(a):
+                return True
+        return False
+
+    before_args: str = line[:line.find('(') + 1]
+    after_args: str = line[line.rfind(')'):]
+    arg: str
+    args: list[str] = split_args(line[len(before_args):-len(after_args)])
+    if not contains_bad_arg():
+        return line
+
+    index: int
+    for index in range(len(args)):
+        arg = args[index]
+        if arg == 'self':
+            continue
+        if arg.startswith('*'):
+            continue
+        if looks_bad(arg) or looks_like_qt_type(arg):
+            args[index] = arg = f'arg_{index}: {arg}'
+
+        # fix duplicate args
+        arg_name: str
+        arg_type: str
+        if ':' in arg:
+            arg_name, arg_type = arg.split(':', maxsplit=1)
+        else:
+            arg_name = arg
+            arg_type = ''
+        if arg_name in [arg.split(':', maxsplit=1)[0] for arg in args[:index]]:
+            if arg_type:
+                args[index] = f'{arg_name}_{arg_type}: {arg_type}'
+            else:
+                args[index] = f'{arg_name}_'
+    return before_args + ', '.join(args) + after_args
 
 
 def add_def_types(lines: list[str]) -> list[str]:
@@ -55,28 +184,47 @@ def add_def_types(lines: list[str]) -> list[str]:
             ]
     docstring_start: int = func.find('"""') + 3
     docstring_end: int = func.find('"""', docstring_start)
-    typed_lines: list[str] = [line for line in map(str.strip, func[docstring_start:docstring_end].splitlines())
-                              if ') -> ' in line]
+    docstring_lines: list[str] = [line.strip() for line in func[docstring_start:docstring_end].splitlines()]
+    typed_lines: list[str] = [line for line in docstring_lines if ') -> ' in line]
 
-    if not typed_lines:  # no typed definitions found: return the initial lines
+    if not typed_lines:  # no typed definitions found
         log.warning(f'Function {func_name(func)} has no types in docstring')
-        return lines
+        if (len(docstring_lines) == 1
+                and docstring_lines[0].startswith(func_name(func) + '(')
+                and docstring_lines[0].endswith(')')):
+            # likely to be the only definition of a function that returns `None`
+            return (lines[:decorators_count]
+                    + ([' ' * base_indent + '@staticmethod']
+                       * ('(self' not in docstring_lines[0] and
+                          not any(line.startswith('@staticmethod', base_indent)
+                                  for line in lines[:decorators_count])))
+                    + [' ' * base_indent + 'def ' + ensure_arg_names(docstring_lines[0]) + ' -> None:']
+                    + lines[(decorators_count + 1):])
+        else:
+            # return the initial lines
+            return lines
     if len(typed_lines) == 1:  # only one typed definition found
         return (lines[:decorators_count]
-                + [' ' * base_indent + 'def ' + typed_lines[0] + ':']
+                + ([' ' * base_indent + '@staticmethod']
+                   * ('(self' not in typed_lines[0] and
+                      not any(line.startswith('@staticmethod', base_indent)
+                              for line in lines[:decorators_count])))
+                + [' ' * base_indent + 'def ' + ensure_arg_names(typed_lines[0]) + ':']
                 + lines[(decorators_count + 1):])
     else:  # multiple typed definitions found: prepend the definitions with '@overload' decorations
         overload_lines: list[str] = []
         line: str
         for line in typed_lines:
             overload_lines.extend(
-                [' ' * base_indent + '@overload']
+                ([' ' * base_indent + '@overload']
+                 * (not any(line.startswith('@overload', base_indent)
+                            for line in lines[:decorators_count])))
                 + lines[:decorators_count]
                 + ([' ' * base_indent + '@staticmethod']
                    * ('(self' not in line and
                       not any(line.startswith('@staticmethod', base_indent)
                               for line in lines[:decorators_count])))
-                + [' ' * base_indent + 'def ' + line + ':']
+                + [' ' * base_indent + 'def ' + ensure_arg_names(line) + ':']
                 + lines[(decorators_count + 1):])
         return overload_lines
 

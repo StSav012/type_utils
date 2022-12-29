@@ -3,6 +3,7 @@ import builtins
 import functools
 import keyword
 import logging
+import sys
 from pathlib import Path
 
 import qtpy  # to get the currently used Qt bindings
@@ -229,13 +230,13 @@ def add_def_types(lines: list[str]) -> list[str]:
         return overload_lines
 
 
-def add_types(filename: Path) -> None:
+def add_types(filename: Path, force: bool = False) -> None:
     """ Replace the definitions of the functions in the file with the typed ones specified in their docstrings """
 
     log.name = str(filename)
 
     lines: list[str] = filename.read_text(encoding='utf-8').splitlines()
-    if 'from typing import *' in lines:
+    if not force and 'from typing import *' in lines:
         log.info('Already typed')
         return
     new_lines: list[str] = []
@@ -252,8 +253,9 @@ def add_types(filename: Path) -> None:
         # find the imports section and prepend it with importing everything from `typing`
         if line.lstrip().startswith('import'):
             if not imports_started:
-                new_lines.append('from typing import *')
-                new_lines.append('')
+                if 'from typing import *' not in lines[:index]:
+                    new_lines.append('from typing import *')
+                    new_lines.append('')
             imports_started = True
 
         # fortunately, the stubs have very consistent formatting, so the function might have decorators or just start
@@ -279,6 +281,8 @@ def add_types(filename: Path) -> None:
 def main() -> None:
     """ Walk through the stubs for the currently used Qt for Python bindings and rewrite the function definitions """
 
+    force: bool = '-f' in sys.argv or '--force' in sys.argv
+
     jb_path: Path
     # FIXME: add the cache locations for other platforms (maybe, from PyCharm settings)
     for jb_path in (Path('~/.cache/JetBrains'), Path('~/AppData/Local/JetBrains')):
@@ -287,9 +291,9 @@ def main() -> None:
         for stubs_path in jb_path.glob(f'PyCharm*/python_stubs/*/{qtpy.API_NAME}'):
             stub_path: Path
             for stub_path in stubs_path.glob('*.py'):
-                add_types(stub_path)
+                add_types(stub_path, force=force)
             for stub_path in stubs_path.glob('*/*.py'):
-                add_types(stub_path)
+                add_types(stub_path, force=force)
 
 
 if __name__ == '__main__':

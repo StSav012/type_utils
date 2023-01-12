@@ -25,7 +25,8 @@ print(f'a_dict: {name_type(a_dict)}')
 Provide the Python code filenames as its command line arguments to get new files with typing annotations removed.
 The result promises to be more compatible to Python 3.4.
 
-The new files are of the same names, but stored in “py34” directory near the original files.
+The new files are of the same names, but stored in a directory 
+specified with `-o` or `--out` parameter (“py34” by default) near the original files.
 
 The script mostly works, but not everything is implemented:
 

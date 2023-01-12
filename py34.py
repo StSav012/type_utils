@@ -2,7 +2,6 @@
 import ast
 import collections.abc
 import logging
-import sys
 import typing
 from os import PathLike
 from pathlib import Path
@@ -926,12 +925,31 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
 
 
 if __name__ == '__main__':
-    do_print: bool = '--print' in sys.argv[1:] or '-p' in sys.argv[1:]
+    import argparse
+
+    def _file_arg(s: str) -> Path:
+        p: Path = Path(s)
+        if not p.is_file():
+            raise ValueError(f'`{s}` is not a file')
+        return p
+
+    def _directory_arg(s: str) -> Path:
+        p: Path = Path(s)
+        if p.exists() and not p.is_dir():
+            raise ValueError(f'`{s}` is not a directory')
+        return p
+
+    parser: argparse.ArgumentParser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--print', action='store_true', help='copy the result into stdout')
+    parser.add_argument('-o', '--out', type=_directory_arg, default='py34',
+                        help='a directory to place the result file(s) into')
+    parser.add_argument('file', nargs='+', metavar='FILE', type=_file_arg, help='a Python file to process')
+    cl_args: argparse.Namespace = parser.parse_args()
+
     filename: Path
-    for filename in map(Path, sys.argv[1:]):
-        if filename.suffix.casefold() == '.py':
-            (filename.parent / 'py34').mkdir(exist_ok=True, parents=True)
-            if do_print:
-                print(clean_annotations_from_code(filename, filename.parent / 'py34' / filename.name))
-            else:
-                clean_annotations_from_code(filename, filename.parent / 'py34' / filename.name)
+    for filename in cl_args.file:
+        (filename.parent / cl_args.out).mkdir(exist_ok=True, parents=True)
+        if cl_args.print:
+            print(clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name))
+        else:
+            clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name)

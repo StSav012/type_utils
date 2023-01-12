@@ -432,27 +432,36 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
         return make_left(operator.elts)
 
     def unpack_starred_dict(operator: ast.Dict) -> ast.expr | ast.Call:
-        def get_items(d: ast.Dict) -> ast.Call:
+        def get_items(d: ast.Dict | ast.Name) -> ast.Call:
             return ast.Call(func=ast.Attribute(attr='items',
                                                value=d),
                             args=[],
                             keywords=[])
 
-        def make_tuple(keys: list[ast.expr | None], values: list[ast.expr | None]) -> ast.Call:
-            d: ast.Dict = ast.Dict(keys=list(check_expression(key) for key in keys),
-                                   values=list(check_expression(value) for value in values))
+        def make_tuple_from_dict(d: ast.Dict | ast.Name) -> ast.Call:
             return ast.Call(func=ast.Name(id='tuple'),
                             args=[get_items(d)],
                             keywords=[])
 
+        def make_tuple_from_kv(keys: list[ast.expr | None], values: list[ast.expr | None]) -> ast.Call:
+            return make_tuple_from_dict(ast.Dict(keys=list(check_expression(key) for key in keys),
+                                                 values=list(check_expression(value) for value in values)))
+
         def make_left(keys: list[ast.expr | None], values: list[ast.expr | None]) -> ast.expr | ast.BinOp:
             if not any(key is None for key in keys):
-                return make_tuple(keys, values)
+                return make_tuple_from_kv(keys, values)
             if len(keys) == 1 and keys[-1] is None:
-                return make_tuple(cast(ast.Dict, values[-1]).keys, cast(ast.Dict, values[-1]).values)
+                match values[-1]:
+                    case ast.Dict():
+                        return make_tuple_from_kv(cast(ast.Dict, values[-1]).keys, cast(ast.Dict, values[-1]).values)
+                    case ast.Name():
+                        return make_tuple_from_dict(cast(ast.Name, values[-1]))
+                    case _:
+                        raise RuntimeError(f'Do not know what to do with {values[-1]}')
             if keys[-1] is None:
                 return ast.BinOp(left=make_left(keys[:-1], values[:-1]),
-                                 right=make_tuple(cast(ast.Dict, values[-1]).keys, cast(ast.Dict, values[-1]).values),
+                                 right=make_tuple_from_kv(cast(ast.Dict, values[-1]).keys,
+                                                          cast(ast.Dict, values[-1]).values),
                                  op=ast.Add())
 
             i: int = 0
@@ -460,7 +469,7 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                 if keys[i] is None:
                     break
             return ast.BinOp(left=make_left(keys[:(i + 1)], values[:(i + 1)]),
-                             right=make_tuple(keys[(i + 1):], values[(i + 1):]),
+                             right=make_tuple_from_kv(keys[(i + 1):], values[(i + 1):]),
                              op=ast.Add())
 
         if len(operator.keys) == 1 and operator.keys[0] is None:

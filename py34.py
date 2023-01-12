@@ -810,24 +810,15 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                 case ast.AsyncFunctionDef():
                     item: ast.AsyncFunctionDef
                     future_code_warning('`async`', (3, 5), item)
-                    arg: ast.arg
-                    for arg in item.args.args:
-                        arg.annotation = None
-                    if item.args.kwarg is not None:
-                        item.args.kwarg.annotation = None
-                    item.returns = None
-                case ast.FunctionDef():
-                    item: ast.FunctionDef
-                    base: ast.expr
                     decorator: ast.Attribute | ast.Name
                     if any((isinstance(decorator, ast.Attribute)
                             and decorator.value.id in import_typing_as
                             and decorator.attr == 'overload')
                            for decorator in item.decorator_list):
-                        continue
+                        continue  # skip the function definition
                     if any((isinstance(decorator, ast.Name) and decorator.id in import_typing_overload_as)
                            for decorator in item.decorator_list):
-                        continue
+                        continue  # skip the function definition
                     arg: ast.arg
                     for arg in item.args.args:
                         arg.annotation = None
@@ -843,6 +834,39 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                         item.args.vararg.annotation = None
                     if item.args.kwarg is not None:
                         item.args.kwarg.annotation = None
+                    default: ast.expr
+                    item.args.defaults = [check_expression(default) for default in item.args.defaults]
+                    item.args.kw_defaults = [check_expression(default) for default in item.args.kw_defaults]
+                    item.returns = None
+                case ast.FunctionDef():
+                    item: ast.FunctionDef
+                    decorator: ast.Attribute | ast.Name
+                    if any((isinstance(decorator, ast.Attribute)
+                            and decorator.value.id in import_typing_as
+                            and decorator.attr == 'overload')
+                           for decorator in item.decorator_list):
+                        continue  # skip the function definition
+                    if any((isinstance(decorator, ast.Name) and decorator.id in import_typing_overload_as)
+                           for decorator in item.decorator_list):
+                        continue  # skip the function definition
+                    arg: ast.arg
+                    for arg in item.args.args:
+                        arg.annotation = None
+                    for arg in item.args.kwonlyargs:
+                        arg.annotation = None
+                    for arg in item.args.posonlyargs:
+                        future_code_warning('position-only arg', (3, 8), arg)
+                        arg.annotation = None
+                    if item.args.posonlyargs:
+                        item.args.args = item.args.posonlyargs + item.args.args
+                        item.args.posonlyargs = []
+                    if item.args.vararg is not None:
+                        item.args.vararg.annotation = None
+                    if item.args.kwarg is not None:
+                        item.args.kwarg.annotation = None
+                    default: ast.expr
+                    item.args.defaults = [check_expression(default) for default in item.args.defaults]
+                    item.args.kw_defaults = [check_expression(default) for default in item.args.kw_defaults]
                     item.returns = None
                 case ast.Match():
                     item: ast.Match

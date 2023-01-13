@@ -275,7 +275,7 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
             return text.replace('{', '{{').replace('}', '}}')
 
         def const_fmt(index: int, fmt: str, level: int = 0) -> str:
-            _fmt: str = fmt if ':' not in fmt else fmt.split(':', maxsplit=1)[1]
+            _fmt: str = '' if '{' in fmt else fmt
             if '_' in _fmt:
                 future_code_warning('`_` f-string formatting option', (3, 6), operator)
             if 'z' in _fmt:
@@ -338,12 +338,14 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                             raise TypeError
                     args.append(value.value)
 
-        if not args:
-            return ast.Constant(value=format_string)
         call: ast.Call | ast.Constant = ast.Constant(value=format_string)
-        for args, keywords in calls:
+        if not args:
+            return call
+        _args: list[ast.expr]
+        _keywords: list[ast.keyword]
+        for _args, _keywords in calls:
             call = ast.Call(func=ast.Attribute(value=call,
-                                               attr='format'), args=args, keywords=keywords)
+                                               attr='format'), args=_args, keywords=_keywords)
         call = ast.Call(func=ast.Attribute(value=call,
                                            attr='format'),
                         args=[],

@@ -314,8 +314,8 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                                             attr='format')
         return ast.Call(func=func, args=args, keywords=[])
 
-    def unpack_starred_tuple(operator: ast.Tuple) -> ast.expr:
-        def make_tuple(elements: list[ast.expr]) -> ast.Call:
+    def unpack_starred_elements(args: list[ast.expr]) -> ast.expr | ast.BinOp | ast.Tuple | ast.Call:
+        def make_tuple_call(elements: list[ast.expr]) -> ast.Call:
             return ast.Call(func=ast.Name(id='tuple'),
                             args=[check_expression(cast(ast.Starred, e).value) for e in elements],
                             keywords=[])
@@ -328,7 +328,7 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                     return ast.Tuple(elts=list(check_expression(e)
                                                for e in cast(ast.List, cast(ast.Starred, elements[0]).value).elts))
                 else:
-                    return make_tuple([elements[0]])
+                    return make_tuple_call([elements[0]])
             if isinstance(elements[-1], ast.Starred):
                 if isinstance(cast(ast.Starred, elements[-1]).value, ast.List):
                     return ast.BinOp(left=make_left(elements[:-1]),
@@ -338,7 +338,7 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                                      op=ast.Add())
                 else:
                     return ast.BinOp(left=make_left(elements[:-1]),
-                                     right=make_tuple([elements[-1]]),
+                                     right=make_tuple_call([elements[-1]]),
                                      op=ast.Add())
             not_starred: list[ast.expr] = []
             i: int = 0
@@ -351,7 +351,13 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                              right=ast.Tuple(elts=not_starred),
                              op=ast.Add())
 
-        return make_left(operator.elts)
+        return make_left(args)
+
+    def unpack_starred_args(args: list[ast.expr]) -> list[ast.Starred]:
+        return [ast.Starred(value=unpack_starred_elements(args))]
+
+    def unpack_starred_tuple(operator: ast.Tuple) -> ast.expr:
+        return unpack_starred_elements(operator.elts)
 
     def unpack_starred_list(operator: ast.List) -> ast.expr:
         def make_list(elements: list[ast.expr]) -> ast.Call:
@@ -530,6 +536,9 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                 else:
                     operator.func = check_expression(operator.func)
                     operator.args = list(map(check_expression, operator.args))
+                    if any(isinstance(arg, ast.Starred) for arg in operator.args[:-1]):  # except the last arg
+                        future_code_warning('unnamed arguments after *expression', (3, 5), operator)
+                        operator.args = unpack_starred_args(operator.args)
                     keyword: ast.keyword
                     for keyword in operator.keywords:
                         keyword.value = check_expression(keyword.value)

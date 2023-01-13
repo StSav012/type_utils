@@ -572,12 +572,12 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
                     operator: ast.Call = ast.Call(func=ast.Name(id='float'),
                                                   args=[ast.Constant(value='nan')],
                                                   keywords=[])
-                if operator.id in import_math_inf_as:
+                elif operator.id in import_math_inf_as:
                     future_code_warning(f'`math.inf` expression', (3, 5), operator)
                     operator: ast.Call = ast.Call(func=ast.Name(id='float'),
                                                   args=[ast.Constant(value='inf')],
                                                   keywords=[])
-                if operator.id == 'ModuleNotFoundError':
+                elif operator.id == 'ModuleNotFoundError':
                     future_code_warning(f'`ModuleNotFoundError` exception', (3, 6), operator)
                     operator.id = 'ImportError'
             case ast.Tuple():

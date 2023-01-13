@@ -267,52 +267,90 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
         item.body.insert(i, cast(ast.stmt, init_function))
         return item
 
-    def joined_str_to_format_call(operator: ast.JoinedStr) -> ast.Call:
+    def joined_str_to_format_call(operator: ast.JoinedStr) -> ast.Call | ast.Constant:
+        calls: list[tuple[list[ast.expr], list[ast.keyword]]] = []
+        joined_str_to_format_call.arg_index = getattr(joined_str_to_format_call, 'arg_index', 0)
+
         def duplicate_braces(text: str) -> str:
             return text.replace('{', '{{').replace('}', '}}')
 
-        format_string: str = ''
+        def const_fmt(index: int, fmt: str, level: int = 0) -> str:
+            _fmt: str = fmt if ':' not in fmt else fmt.split(':', maxsplit=1)[1]
+            if '_' in _fmt:
+                future_code_warning('`_` f-string formatting option', (3, 6), operator)
+            if 'z' in _fmt:
+                future_code_warning('`z` f-string formatting option', (3, 11), operator)
+            if '_' not in _fmt and 'z' not in _fmt:
+                return '{' * (level + 1) + f'__{index}:{fmt}' + '}' * (level + 1)
+            else:
+                return '{' * (level + 1) + f'__{index}' + '}' * (level + 1)
+
         args: list[ast.expr] = []
-        a: ast.expr
-        for a in operator.values:
-            if isinstance(a, ast.Constant):
-                format_string += duplicate_braces(a.value)
-            elif isinstance(a, ast.FormattedValue):
-                if a.format_spec is None:
-                    if a.conversion is not None and a.conversion > 0:
-                        format_string += f'{{{len(args)}!{chr(a.conversion)}}}'
-                    else:
-                        format_string += f'{{{len(args)}}}'
-                elif isinstance(a.format_spec, ast.JoinedStr):
-                    if len(a.format_spec.values) == 1:
-                        fs: ast.expr
-                        for fs in a.format_spec.values:
-                            if not isinstance(fs, ast.Constant):
-                                format_string += f'{{{len(args)}}}'
-                                future_code_warning(f'unknown formatting spec item: {fs}', (4, 0), operator)
-                                continue
-                            if '_' in fs.value:
-                                future_code_warning('`_` f-string formatting option', (3, 6), operator)
-                            if 'z' in fs.value:
-                                future_code_warning('`z` f-string formatting option', (3, 11), operator)
-                            if '_' not in fs.value and 'z' not in fs.value:
-                                format_string += f'{{{len(args)}:{fs.value}}}'
+        format_string: str = ''
+        value: ast.expr
+        for value in operator.values:
+            match value:
+                case ast.Constant():
+                    value: ast.Constant
+                    format_string += duplicate_braces(value.value)
+                case ast.FormattedValue():
+                    value: ast.FormattedValue
+                    fs: ast.expr | None = value.format_spec
+                    match fs:
+                        case None:
+                            fs: None
+                            format_string += f'{{__{joined_str_to_format_call.arg_index}}}'
+                            joined_str_to_format_call.arg_index += 1
+                        case ast.Constant():
+                            fs: ast.Constant
+                            format_string += const_fmt(joined_str_to_format_call.arg_index, fs.value, level=len(calls))
+                            joined_str_to_format_call.arg_index += 1
+                        case ast.JoinedStr():
+                            fs: ast.JoinedStr
+                            if len(fs.values) != 1:
+                                raise ValueError
+                            format_string += f'{{__{joined_str_to_format_call.arg_index}:{fs.values[0]}}}'
+                            joined_str_to_format_call.arg_index += 1
+                        case ast.Call():
+                            fs: ast.Call
+                            func: ast.expr = fs.func
+                            # level 1; as for Python 3.11, it's the final one, no need for recursion
+                            if calls:
+                                calls[0][0].extend(fs.args)
+                                calls[0][1].extend(fs.keywords)
                             else:
-                                format_string += f'{{{len(args)}}}'
-                    else:
-                        format_string += f'{{{len(args)}}}'
-                        future_code_warning('nested f-string formatting', (3, 6), operator)
-                elif (isinstance(a.format_spec, ast.Call)
-                      and isinstance(a.format_spec.func, ast.Attribute)
-                      and isinstance(a.format_spec.func.value, ast.Constant)):
-                    format_string += f'{{{len(args)}:{a.format_spec.func.value.value}}}'
-                else:
-                    format_string += f'{{{len(args)}}}'
-                    future_code_warning(f'unknown formatting spec: {a.format_spec}', (4, 0), operator)
-                args.append(a.value)
-        func: ast.Attribute = ast.Attribute(value=ast.Constant(value=format_string),
-                                            attr='format')
-        return ast.Call(func=func, args=args, keywords=[])
+                                calls.append((fs.args, fs.keywords))
+                            match func:
+                                case ast.Attribute():
+                                    func: ast.Attribute
+                                    v: ast.expr = func.value
+                                    match v:
+                                        case ast.Constant():
+                                            v: ast.Constant
+                                            format_string += const_fmt(joined_str_to_format_call.arg_index, v.value,
+                                                                       level=len(calls))
+                                            joined_str_to_format_call.arg_index += 1
+                                        case _:
+                                            raise TypeError
+                                case _:
+                                    raise TypeError
+                        case _:
+                            raise TypeError
+                    args.append(value.value)
+
+        if not args:
+            return ast.Constant(value=format_string)
+        call: ast.Call | ast.Constant = ast.Constant(value=format_string)
+        for args, keywords in calls:
+            call = ast.Call(func=ast.Attribute(value=call,
+                                               attr='format'), args=args, keywords=keywords)
+        call = ast.Call(func=ast.Attribute(value=call,
+                                           attr='format'),
+                        args=[],
+                        keywords=[ast.keyword(arg=f'__{i + (joined_str_to_format_call.arg_index - len(args))}',
+                                              value=a)
+                                  for i, a in enumerate(args)])
+        return call
 
     def unpack_starred_elements(args: list[ast.expr]) -> ast.expr | ast.BinOp | ast.Tuple | ast.Call:
         def make_tuple_call(elements: list[ast.expr]) -> ast.Call:
@@ -970,31 +1008,36 @@ def clean_annotations_from_code(original_filename: str | PathLike[str],
 
 
 if __name__ == '__main__':
-    import argparse
 
-    def _file_arg(s: str) -> Path:
-        p: Path = Path(s)
-        if not p.is_file():
-            raise ValueError(f'`{s}` is not a file')
-        return p
+    def _main() -> None:
+        import argparse
 
-    def _directory_arg(s: str) -> Path:
-        p: Path = Path(s)
-        if p.exists() and not p.is_dir():
-            raise ValueError(f'`{s}` is not a directory')
-        return p
+        def _file_arg(s: str) -> Path:
+            p: Path = Path(s)
+            if not p.is_file():
+                raise ValueError(f'`{s}` is not a file')
+            return p
 
-    parser: argparse.ArgumentParser = argparse.ArgumentParser()
-    parser.add_argument('-p', '--print', action='store_true', help='copy the result into stdout')
-    parser.add_argument('-o', '--out', type=_directory_arg, default='py34',
-                        help='a directory to place the result file(s) into')
-    parser.add_argument('file', nargs='+', metavar='FILE', type=_file_arg, help='a Python file to process')
-    cl_args: argparse.Namespace = parser.parse_args()
+        def _directory_arg(s: str) -> Path:
+            p: Path = Path(s)
+            if p.exists() and not p.is_dir():
+                raise ValueError(f'`{s}` is not a directory')
+            return p
 
-    filename: Path
-    for filename in cl_args.file:
-        (filename.parent / cl_args.out).mkdir(exist_ok=True, parents=True)
-        if cl_args.print:
-            print(clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name))
-        else:
-            clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name)
+        parser: argparse.ArgumentParser = argparse.ArgumentParser()
+        parser.add_argument('-p', '--print', action='store_true', help='copy the result into stdout')
+        parser.add_argument('-o', '--out', type=_directory_arg, default='py34',
+                            help='a directory to place the result file(s) into')
+        parser.add_argument('file', nargs='+', metavar='FILE', type=_file_arg, help='a Python file to process')
+        cl_args: argparse.Namespace = parser.parse_args()
+
+        filename: Path
+        for filename in cl_args.file:
+            (filename.parent / cl_args.out).mkdir(exist_ok=True, parents=True)
+            if cl_args.print:
+                print(clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name))
+            else:
+                clean_annotations_from_code(filename, filename.parent / cl_args.out / filename.name)
+
+
+    _main()

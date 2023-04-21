@@ -68,6 +68,10 @@ def ensure_arg_names(filename: Path, line: str) -> str:
         },
         'QListWidgetItem.py': {
             # PySide6
+            'data(self, role: int) -> Any':
+                'data(self, role: PySide6.QtCore.Qt.ItemDataRole) -> Any',
+            'setData(self, role: int, value: Any) -> None':
+                'setData(self, role: PySide6.QtCore.Qt.ItemDataRole, value: Any) -> None',
             '__init__(self, icon: Union[PySide6.QtGui.QIcon, PySide6.QtGui.QPixmap], text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':
                 '__init__(self, icon: Union[PySide6.QtGui.QIcon, PySide6.QtGui.QPixmap], text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: PySide6.QtWidgets.QListWidgetItem.ItemType = PySide6.QtWidgets.QListWidgetItem.ItemType.Type) -> None',
             '__init__(self, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':

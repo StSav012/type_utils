@@ -66,6 +66,13 @@ def ensure_arg_names(filename: Path, line: str) -> str:
             'value(self, key: Union[QByteArray, str], defaultValue: Any = None, type: type = None) -> object':
                 'value(self, key: str, defaultValue: Optional[_T] = None, type: Optional[Type[_T]] = None) -> _T',
         },
+        'QListWidgetItem.py': {
+            # PySide6
+            '__init__(self, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':
+                '__init__(self, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: QListWidgetItem.ItemType = QListWidgetItem.ItemType.Type) -> None',
+            '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':
+                '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: QListWidgetItem.ItemType = QListWidgetItem.ItemType.Type) -> None',
+        }
     }
     if filename.name in hardcoded_corrections and line in hardcoded_corrections[filename.name]:
         return hardcoded_corrections[filename.name][line]

@@ -35,10 +35,40 @@ def func_name(func: str) -> str:
     return func[(def_pos + 4):(func.find('(', def_pos + 4))].strip()
 
 
-def ensure_arg_names(line: str) -> str:
+def ensure_arg_names(filename: Path, line: str) -> str:
     """ Add dummy arg names if only arg types specified """
 
     # should we type `self`? (see https://peps.python.org/pep-0673/)
+
+    hardcoded_corrections: dict[str, dict[str, str]] = {
+        'QCoreApplication.py': {
+            # PySide2
+            'translate(context: bytes, key: bytes, disambiguation: typing.Optional[bytes] = None, n: int = -1) -> str':
+                'translate(context: str, sourceText: str, disambiguation: typing.Optional[str] = None, n: int = -1) -> str',
+            # PyQt5
+            'translate(str, str, disambiguation: str = None, n: int = -1) -> str':
+                'translate(context: str, sourceText: str, disambiguation: typing.Optional[str] = None, n: int = -1) -> str',
+            # PySide6
+            'translate(context: bytes, key: bytes, disambiguation: Optional[bytes] = None, n: int = -1) -> str':
+                'translate(context: str, sourceText: str, disambiguation: Optional[str] = None, n: int = -1) -> str',
+        },
+        'QSettings.py': {
+            # PySide2
+            'value(self, arg__1: str, defaultValue: typing.Optional[Any] = None, type: typing.Optional[object] = None) -> object':
+                'value(self, key: str, defaultValue: typing.Optional[_T] = None, type: typing.Optional[Type[_T]] = None) -> _T',
+            # PyQt5
+            'value(self, str, defaultValue: Any = None, type: type = None) -> object':
+                'value(self, key: str, defaultValue: typing.Optional[_T] = None, type: typing.Optional[Type[_T]] = None) -> _T',
+            # PySide6
+            'value(self, arg__1: str, defaultValue: Optional[Any] = None, type: Optional[object] = None) -> object':
+                'value(self, key: str, defaultValue: Optional[_T] = None, type: Optional[Type[_T]] = None) -> _T',
+            # PyQt6
+            'value(self, key: Union[QByteArray, str], defaultValue: Any = None, type: type = None) -> object':
+                'value(self, key: str, defaultValue: Optional[_T] = None, type: Optional[Type[_T]] = None) -> _T',
+        },
+    }
+    if filename.name in hardcoded_corrections and line in hardcoded_corrections[filename.name]:
+        return hardcoded_corrections[filename.name][line]
 
     def split_args(args_str: str) -> list[str]:
         in_quotes: bool = False
@@ -159,7 +189,7 @@ def ensure_arg_names(line: str) -> str:
     return before_args + ', '.join(args) + after_args
 
 
-def add_def_types(lines: list[str]) -> list[str]:
+def add_def_types(filename: Path, lines: list[str]) -> list[str]:
     """
     Get the typed function definitions from the docstring, if any
 
@@ -199,7 +229,7 @@ def add_def_types(lines: list[str]) -> list[str]:
                        * ('(self' not in docstring_lines[0] and
                           not any(line.startswith('@staticmethod', base_indent)
                                   for line in lines[:decorators_count])))
-                    + [' ' * base_indent + 'def ' + ensure_arg_names(docstring_lines[0]) + ' -> None:']
+                    + [' ' * base_indent + 'def ' + ensure_arg_names(filename, docstring_lines[0]) + ' -> None:']
                     + lines[(decorators_count + 1):])
         else:
             # return the initial lines
@@ -210,7 +240,7 @@ def add_def_types(lines: list[str]) -> list[str]:
                    * ('(self' not in typed_lines[0] and
                       not any(line.startswith('@staticmethod', base_indent)
                               for line in lines[:decorators_count])))
-                + [' ' * base_indent + 'def ' + ensure_arg_names(typed_lines[0]) + ':']
+                + [' ' * base_indent + 'def ' + ensure_arg_names(filename, typed_lines[0]) + ':']
                 + lines[(decorators_count + 1):])
     else:  # multiple typed definitions found: prepend the definitions with '@overload' decorations
         overload_lines: list[str] = []
@@ -225,7 +255,7 @@ def add_def_types(lines: list[str]) -> list[str]:
                    * ('(self' not in line and
                       not any(line.startswith('@staticmethod', base_indent)
                               for line in lines[:decorators_count])))
-                + [' ' * base_indent + 'def ' + ensure_arg_names(line) + ':']
+                + [' ' * base_indent + 'def ' + ensure_arg_names(filename, line) + ':']
                 + lines[(decorators_count + 1):])
         return overload_lines
 
@@ -255,6 +285,7 @@ def add_types(filename: Path, force: bool = False) -> None:
             if not imports_started:
                 if 'from typing import *' not in lines[:index]:
                     new_lines.append('from typing import *')
+                    new_lines.append('_T = TypeVar(\'_T\')')
                     new_lines.append('')
             imports_started = True
 
@@ -269,7 +300,7 @@ def add_types(filename: Path, force: bool = False) -> None:
             index += 1
             while index < len(lines) and (not lines[index].strip() or indent(lines[index]) > def_indent):
                 index += 1
-            new_lines.extend(add_def_types(lines[def_line:index]))
+            new_lines.extend(add_def_types(filename, lines[def_line:index]))
         else:
             # nothing to do with the line, just add it
             new_lines.append(line)

@@ -66,6 +66,11 @@ def ensure_arg_names(filename: Path, line: str) -> str:
             'value(self, key: Union[QByteArray, str], defaultValue: Any = None, type: type = None) -> object':
                 'value(self, key: str, defaultValue: Optional[_T] = None, type: Optional[Type[_T]] = None) -> _T',
         },
+        'QLayout.py': {
+            # PySide6
+            'getContentsMargins(self) -> object':
+                'getContentsMargins(self) -> Tuple[int, int, int, int]',
+        },
         'QListWidgetItem.py': {
             # PySide6
             'data(self, role: int) -> Any':
@@ -78,7 +83,12 @@ def ensure_arg_names(filename: Path, line: str) -> str:
                 '__init__(self, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: PySide6.QtWidgets.QListWidgetItem.ItemType = PySide6.QtWidgets.QListWidgetItem.ItemType.Type) -> None',
             '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':
                 '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: PySide6.QtWidgets.QListWidgetItem.ItemType = PySide6.QtWidgets.QListWidgetItem.ItemType.Type) -> None',
-        }
+        },
+        'QValidator.py': {
+            # PySide6
+            'validate(self, arg__1: str, arg__2: int) -> object':
+                'validate(self, text: str, pos: int) -> PySide6.QtGui.QValidator.State',
+        },
     }
     if filename.name in hardcoded_corrections and line in hardcoded_corrections[filename.name]:
         return hardcoded_corrections[filename.name][line]

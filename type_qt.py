@@ -84,6 +84,11 @@ def ensure_arg_names(filename: Path, line: str) -> str:
             '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: int = <ItemType.Type: 0>) -> None':
                 '__init__(self, text: str, listview: Optional[PySide6.QtWidgets.QListWidget] = None, type: PySide6.QtWidgets.QListWidgetItem.ItemType = PySide6.QtWidgets.QListWidgetItem.ItemType.Type) -> None',
         },
+        'QDialogButtonBox.py': {
+            # PySide6
+            'addButton(self, button: PySide6.QtWidgets.QAbstractButton, role: PySide6.QtWidgets.QDialogButtonBox.ButtonRole) -> None':
+                'addButton(self, button: PySide6.QtWidgets.QAbstractButton, role: PySide6.QtWidgets.QDialogButtonBox.ButtonRole) -> PySide6.QtWidgets.QPushButton',
+        },
         'QValidator.py': {
             # PySide6
             'validate(self, arg__1: str, arg__2: int) -> object':

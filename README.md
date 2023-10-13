@@ -49,6 +49,8 @@ python py34.py /usr/lib64/python3.11/tomllib/*.py
 
 It requires `QtPy` to work.
 
+Until the Python Interface files shipped with PyQt*/PySide* are good enough, the script re-builds them, too.
+
 PyCharm provides awful stubs for Qt for Python (PySide6, PyQt6, PyQt5, PySide2, PyQt4, and PySide).
 There, the arguments count and the defaults may be wrong, static functions have an inappropriate `self` argument,
 and there are no type hints.

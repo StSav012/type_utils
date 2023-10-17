@@ -190,10 +190,6 @@ def ensure_arg_names(cls: str, line: str) -> str:
             # PyQt6
             "value(self, key: Union[QByteArray, str], defaultValue: Any = None, type: type = None) -> object": "value(self, key: str, defaultValue: Optional[_T] = None, type: Optional[Type[_T]] = None) -> _T",
         },
-        "QDialogButtonBox": {
-            # PySide6
-            "addButton(self, button: PySide6.QtWidgets.QAbstractButton, role: PySide6.QtWidgets.QDialogButtonBox.ButtonRole) -> None": "addButton(self, button: PySide6.QtWidgets.QAbstractButton, role: PySide6.QtWidgets.QDialogButtonBox.ButtonRole) -> PySide6.QtWidgets.QPushButton",
-        },
         "QLayout": {
             # PySide6
             "getContentsMargins(self) -> object": "getContentsMargins(self) -> Tuple[int, int, int, int]",

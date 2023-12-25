@@ -265,7 +265,7 @@ def ensure_arg_names(cls: str, line: str) -> str:
         if match is not None:
             return " = ".join((n, cls + "." + match.group("enum_member")))
 
-        match = re.match(r"Default\((?P<qt_type>Q\w+)<([\w.]+(,\s*)?)+>\)", v)
+        match = re.match(r"Default\((?P<qt_type>Q\w+)<\s?([\w.]+(,\s?)?)+\s?>\)", v)
         if match is not None:
             return " = ".join((n, c_type_to_python(match.group("qt_type")) + "()"))
 

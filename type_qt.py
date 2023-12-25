@@ -709,6 +709,7 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                     empty_class = False
                 case QColor():
                     yield _o() + f"{mn}: {m.__module__}.{m.__class__.__name__} = {m!r}"
+                    empty_class = False
                 case _:
                     if DebuggerWidget is not None and (
                         m is DebuggerWidget or isinstance(m, DebuggerWidget)

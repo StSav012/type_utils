@@ -168,7 +168,7 @@ def ensure_arg_names(cls: str, line: str) -> str:
         "__getattr__(self, name):": "__getattr__(self, name: str) -> Any:",
         "__setattr__(self, *args, **kwargs):": "__setattr__(self, name: str, value: Any) -> None:",
         "__setattr__(self, name, value):": "__setattr__(self, name: str, value: Any) -> None:",
-        "__delattr__(self, *args, **kwargs):": "__delattr__(self, *args, **kwargs): -> None:",
+        "__delattr__(self, *args, **kwargs):": "__delattr__(self, *args, **kwargs) -> None:",
         "__delattr__(self, name):": "__delattr__(self, name: str) -> None:",
         "raise(self): ...": "raise_(self) -> None: ...",
         # class-specific functions

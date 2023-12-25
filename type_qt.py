@@ -30,11 +30,21 @@ from qtpy.QtCore import (
     QMetaObject,
     QMetaProperty,
     QOperatingSystemVersion,
-    QOperatingSystemVersionBase,
     Qt,
     Signal,
 )
 from qtpy.QtGui import QColor
+
+try:
+    from qtpy.QtCore import QOperatingSystemVersionBase
+except ImportError:
+    QOperatingSystemVersionBase = QOperatingSystemVersion
+try:
+    DebuggerWidget = sys.modules[
+        API_NAME
+    ].QtScriptTools.QScriptEngineDebugger.DebuggerWidget
+except AttributeError:
+    DebuggerWidget = None
 
 logging.basicConfig()
 log: logging.Logger = logging.getLogger()
@@ -700,6 +710,10 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                 case QColor():
                     yield _o() + f"{mn}: {m.__module__}.{m.__class__.__name__} = {m!r}"
                 case _:
+                    if DebuggerWidget is not None and (
+                        m is DebuggerWidget or isinstance(m, DebuggerWidget)
+                    ):
+                        raise NotImplementedError
                     match m.__class__.__name__:
                         case "wrapper_descriptor" | "method_descriptor" | "getset_descriptor":
                             yield from function_or_method_stubs(m, offset=offset)

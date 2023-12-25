@@ -263,7 +263,7 @@ def ensure_arg_names(cls: str, line: str) -> str:
         if match is not None:
             return " = ".join((n, c_type_to_python(match.group("type")) + "()"))
 
-        raise ValueError
+        raise ValueError(f"Unknown argument: {a!r}")
 
     def fix_ret_type() -> str:
         if "->" not in after_args:
@@ -710,7 +710,7 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                             empty_class = False
                         case _:
                             if cls is not Qt:
-                                raise TypeError
+                                raise TypeError(f"Unknown class {cls!r}")
     if empty_class:
         yield _o() + "pass"
     yield empty_line

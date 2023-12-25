@@ -669,8 +669,8 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                 case staticmethod():
                     m: "staticmethod"
                     if m.__isabstractmethod__:
-                        yield _o() + f"@abstractmethod"
-                    yield _o() + f"@staticmethod"
+                        yield _o() + "@abstractmethod"
+                    yield _o() + "@staticmethod"
                     yield from function_or_method_stubs(m.__func__, offset=offset)
                     empty_class = False
                 case enum.Enum():

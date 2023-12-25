@@ -883,10 +883,8 @@ def fix_pyi() -> None:
                 )
 
 
-def main() -> None:
+def fix_jb_stubs() -> None:
     """Walk through the stubs for the currently used Qt for Python bindings and rewrite the function definitions"""
-
-    fix_pyi()
 
     force: bool = "-f" in sys.argv or "--force" in sys.argv
 
@@ -904,4 +902,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # fix_pyi()
+    fix_jb_stubs()

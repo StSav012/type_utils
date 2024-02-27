@@ -716,7 +716,11 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                     ):
                         raise NotImplementedError
                     match m.__class__.__name__:
-                        case "wrapper_descriptor" | "method_descriptor" | "getset_descriptor":
+                        case (
+                            "wrapper_descriptor"
+                            | "method_descriptor"
+                            | "getset_descriptor"
+                        ):
                             yield from function_or_method_stubs(m, offset=offset)
                             empty_class = False
                         case "classmethod_descriptor":

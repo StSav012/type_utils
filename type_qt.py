@@ -290,7 +290,11 @@ def ensure_arg_names(cls: str, line: str) -> str:
             return f") -> {ret_type}:{res}"
 
     before_args: str = line[: line.find("(") + 1]
-    after_args: str = line[line.rfind(")") :]
+    after_args: str
+    if "->" in line:
+        after_args = line[line.rfind(")", None, line.rfind("->")) :]
+    else:
+        after_args = line[line.rfind(")") :]
     arg: str
     args: list[str] = split_args(line[len(before_args) : -len(after_args)])
 

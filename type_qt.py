@@ -725,9 +725,11 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                             | "method_descriptor"
                             | "getset_descriptor"
                         ):
+                            m: Callable
                             yield from function_or_method_stubs(m, offset=offset)
                             empty_class = False
                         case "classmethod_descriptor":
+                            m: Callable
                             yield _o() + "@classmethod"
                             yield from function_or_method_stubs(m, offset=offset)
                             empty_class = False

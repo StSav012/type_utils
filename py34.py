@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Protocol, cast
 
 TYPING_CLASSES_VERSIONS: dict[str, tuple[int, ...]] = {
-    # from https://docs.python.org/3.11/library/typing.html
+    # from https://docs.python.org/3.12/library/typing.html
     "NewType": (3, 5, 2),
     "LiteralString": (3, 11),
     "Never": (3, 11),
@@ -29,6 +29,7 @@ TYPING_CLASSES_VERSIONS: dict[str, tuple[int, ...]] = {
     "ParamSpec": (3, 10),
     "ParamSpecArgs": (3, 10),
     "ParamSpecKwargs": (3, 10),
+    "TypeAliasType": (3, 12),
     "Protocol": (3, 8),
     "runtime_checkable": (3, 8),
     "TypedDict": (3, 8),
@@ -54,6 +55,7 @@ TYPING_CLASSES_VERSIONS: dict[str, tuple[int, ...]] = {
     "get_overloads": (3, 11),
     "clear_overloads": (3, 11),
     "final": (3, 8),
+    "override": (3, 12),
     "get_origin": (3, 8),
     "is_typeddict": (3, 10),
     "ForwardRef": (3, 7, 4),
@@ -121,6 +123,7 @@ def clean_annotations_from_code(
     import_typing_as: list[str] = []
     import_typing_cast_as: list[str] = []
     import_typing_overload_as: list[str] = []
+    import_typing_override_as: list[str] = []
     import_typing_named_tuple_as: list[str] = []
     replace_typing_named_tuple_as: list[str] = []
     import_typing_generic_as: list[str] = []
@@ -915,6 +918,13 @@ def clean_annotations_from_code(
                                     if name.name == "overload"
                                 ]
                             )
+                            import_typing_override_as.extend(
+                                [
+                                    name.asname or name.name
+                                    for name in item.names
+                                    if name.name == "override"
+                                ]
+                            )
                             import_typing_named_tuple_as.extend(
                                 [
                                     name.asname or name.name
@@ -1087,6 +1097,13 @@ def clean_annotations_from_code(
                                 name.asname or name.name
                                 for name in item.names
                                 if name.name == "typing.overload"
+                            ]
+                        )
+                        import_typing_override_as.extend(
+                            [
+                                name.asname or name.name
+                                for name in item.names
+                                if name.name == "typing.override"
                             ]
                         )
                         import_typing_named_tuple_as.extend(
@@ -1273,6 +1290,22 @@ def clean_annotations_from_code(
                         for decorator in item.decorator_list
                     ):
                         continue  # skip the function definition
+                    if any(
+                        (
+                            isinstance(decorator, ast.Attribute)
+                            and decorator.value.id in import_typing_as
+                            and decorator.attr == "override"
+                        )
+                        for decorator in item.decorator_list
+                    ) or any(
+                        (
+                            isinstance(decorator, ast.Name)
+                            and decorator.id in import_typing_override_as
+                        )
+                        for decorator in item.decorator_list
+                    ):
+                        continue  # skip the function definition
+
                     arg: ast.arg
                     for arg in item.args.args:
                         arg.annotation = None
@@ -1312,6 +1345,22 @@ def clean_annotations_from_code(
                         for decorator in item.decorator_list
                     ):
                         continue  # skip the function definition
+                    if any(
+                        (
+                            isinstance(decorator, ast.Attribute)
+                            and decorator.value.id in import_typing_as
+                            and decorator.attr == "override"
+                        )
+                        for decorator in item.decorator_list
+                    ) or any(
+                        (
+                            isinstance(decorator, ast.Name)
+                            and decorator.id in import_typing_override_as
+                        )
+                        for decorator in item.decorator_list
+                    ):
+                        continue  # skip the function definition
+
                     arg: ast.arg
                     for arg in item.args.args:
                         arg.annotation = None
@@ -1394,6 +1443,10 @@ def clean_annotations_from_code(
                         for decorator in item.decorator_list
                     ):
                         item = fix_dataclass(item)
+                case ast.TypeAlias():
+                    # The type statement
+                    #  https://docs.python.org/3.12/reference/simple_stmts.html#type
+                    continue  # skip the statement
                 case _:
                     pass
 

@@ -808,19 +808,26 @@ def q_meta_object_stubs(m: QMetaObject, offset: int = 0) -> Iterator[str]:
         _m: QMetaMethod = m.method(_m_i)
         if _m.enclosingMetaObject() is not m:
             continue
-        if _m.methodType() == QMetaMethod.MethodType.Signal:
+        _m_method_type: QMetaMethod.MethodType = _m.methodType()
+        _m_method_type_name: str = getattr(_m_method_type, "name", "Any")
+        if not hasattr(_m_method_type, "name"):
+            for name in QMetaMethod.__dict__:
+                if _m_method_type == getattr(QMetaMethod.MethodType, name, None):
+                    _m_method_type_name = name
+                    break
+        if _m_method_type == QMetaMethod.MethodType.Signal:
             # signals are skipped here to be defined another way
             pass
-        elif _m.methodType() != QMetaMethod.MethodType.Slot:
+        elif _m_method_type != QMetaMethod.MethodType.Slot:
             yield (
                 _o()
-                + f"{_m.name().toStdString()}: {_m.methodType().name} = ..."
+                + f"{_m.name().toStdString()}: {_m_method_type_name} = ..."
                 + f"  # {_m.methodSignature().toStdString()}"
             )
             yield empty_line
         else:
             slot_types: Iterator[str] = map(c_type_to_python, _m.parameterTypes())
-            yield _o() + f"@{_m.methodType().name}({', '.join(slot_types)})"
+            yield _o() + f"@{_m_method_type_name}({', '.join(slot_types)})"
             slot_arguments: list[str] = ["self"] + list(
                 f"{_pn.toStdString() if _pn is not None else 'arg__' + str(_pi)}: {_pt}"
                 for _pi, (_pn, _pt) in enumerate(

@@ -641,6 +641,14 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
             if mn.startswith("_") and not callable(m):
                 continue
             match m:
+                case float():
+                    m: float
+                    yield (
+                        _o()
+                        + f"{mn}: ClassVar[{cls.__module__}.{m.__class__.__name__}] = {m!r}"
+                    )
+                    yield empty_line
+                    empty_class = False
                 case int():
                     m: int
                     if m >= 0:

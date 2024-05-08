@@ -806,7 +806,7 @@ def function_or_method_stubs(func: Callable, offset: int = 0) -> Iterator[str]:
     def _o() -> str:
         return " " * offset
 
-    if not func.__name__.startswith("_q_"):
+    if not func.__name__.startswith("_q_") and func.__name__ != "<lambda>":
         if isinstance(func.__doc__, str) and func.__doc__:
             yield _o() + f"def {func.__name__}{func_args_str(func)}:"
             offset += 4

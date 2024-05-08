@@ -942,5 +942,5 @@ def fix_jb_stubs() -> None:
 
 
 if __name__ == "__main__":
-    # fix_pyi()
+    fix_pyi()
     fix_jb_stubs()

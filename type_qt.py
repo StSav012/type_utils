@@ -20,7 +20,7 @@ from types import (
     FunctionType,
     ModuleType,
 )
-from typing import Callable, Iterable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 from qtpy import API_NAME  # to get the currently used Qt bindings
 from qtpy.QtCore import (
@@ -889,7 +889,13 @@ def fix_pyi() -> None:
                 f"import {module.__name__}",
                 empty_line,
             ]
-            for n, o in module.__dict__.items():
+
+            # in case of lazy loading, re-check the module dict every time
+            accessed_items: set[str] = set()
+            while left_items := (set(module.__dict__) - accessed_items):
+                n: str = left_items.pop()
+                o: Any = module.__dict__[n]
+                accessed_items.add(n)
                 if hasattr(o, "__module__"):
                     if not o.__module__.startswith(API_NAME):
                         continue
@@ -905,6 +911,7 @@ def fix_pyi() -> None:
                             raise TypeError(f"{type(o) = !r}")
                 elif not n.startswith("_"):
                     new_lines.append(f"{n}: {o.__class__.__name__} = {o}")
+
             with open(module_path, "wt") as f_out:
                 f_out.write(
                     "\n".join(

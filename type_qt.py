@@ -675,6 +675,14 @@ def class_stubs(cls: type, offset: int = 0) -> Iterator[str]:
                     m: type
                     yield from class_stubs(m, offset=offset)
                     empty_class = False
+                case QByteArray():
+                    m: QByteArray
+                    yield (
+                        _o()
+                        + f"{mn}: ClassVar[{cls.__module__}.{m.__class__.__name__}] = {m!r}"
+                    )
+                    yield empty_line
+                    empty_class = False
                 case BuiltinFunctionType() | FunctionType():
                     yield from function_or_method_stubs(m, offset=offset)
                     empty_class = False
